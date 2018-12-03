@@ -85,6 +85,8 @@ namespace CommandIDs {
 
   export const runCode = 'fileeditor:run-code';
 
+  export const runAllCode = 'fileeditor:run-all';
+
   export const markdownPreview = 'fileeditor:markdown-preview';
 }
 
@@ -111,7 +113,7 @@ const plugin: JupyterLabPlugin<IEditorTracker> = {
  * switch tabs vs spaces and tab widths for text editors.
  */
 export const tabSpaceStatus: JupyterLabPlugin<void> = {
-  id: '@jupyterlab/fileeditor-extension:tab-space-item',
+  id: '@jupyterlab/fileeditor-extension:tab-space-status',
   autoStart: true,
   requires: [IStatusBar, IEditorTracker, ISettingRegistry],
   activate: (
@@ -161,15 +163,20 @@ export const tabSpaceStatus: JupyterLabPlugin<void> = {
     });
 
     // Add the status item.
-    statusBar.registerStatusItem('tab-space-item', item, {
-      align: 'right',
-      rank: 1,
-      isActive: () => {
-        return (
-          app.shell.currentWidget && editorTracker.has(app.shell.currentWidget)
-        );
+    statusBar.registerStatusItem(
+      '@jupyterlab/fileeditor-extension:tab-space-status',
+      {
+        item,
+        align: 'right',
+        rank: 1,
+        isActive: () => {
+          return (
+            app.shell.currentWidget &&
+            editorTracker.has(app.shell.currentWidget)
+          );
+        }
       }
-    });
+    );
   }
 };
 
@@ -312,7 +319,6 @@ function activate(
           console.error(`Failed to set ${id}: ${reason.message}`);
         });
     },
-    isEnabled,
     label: args => args['name'] as string
   });
 
@@ -361,7 +367,6 @@ function activate(
           console.error(`Failed to set ${id}: ${reason.message}`);
         });
     },
-    isEnabled,
     isToggled: args => {
       const insertSpaces = !!args['insertSpaces'];
       const size = (args['size'] as number) || 4;
@@ -393,7 +398,6 @@ function activate(
         });
     },
     label: 'Auto Close Brackets for Text Editor',
-    isEnabled,
     isToggled: () => config.autoClosingBrackets
   });
 
@@ -484,6 +488,41 @@ function activate(
     },
     isEnabled,
     label: 'Run Code'
+  });
+
+  commands.addCommand(CommandIDs.runAllCode, {
+    execute: () => {
+      let widget = tracker.currentWidget.content;
+
+      if (!widget) {
+        return;
+      }
+
+      let code = '';
+      let editor = widget.editor;
+      let text = editor.model.value.text;
+      let path = widget.context.path;
+      let extension = PathExt.extname(path);
+
+      if (MarkdownCodeBlocks.isMarkdown(extension)) {
+        // For Markdown files, run only code blocks.
+        const blocks = MarkdownCodeBlocks.findMarkdownCodeBlocks(text);
+        for (let block of blocks) {
+          code += block.code;
+        }
+      } else {
+        code = text;
+      }
+
+      const activate = false;
+      if (code) {
+        return commands.execute('console:inject', { activate, code, path });
+      } else {
+        return Promise.resolve(void 0);
+      }
+    },
+    isEnabled,
+    label: 'Run All Code'
   });
 
   commands.addCommand(CommandIDs.markdownPreview, {
@@ -706,7 +745,16 @@ function activate(
         });
         return found;
       },
-      run: () => commands.execute(CommandIDs.runCode)
+      run: () => commands.execute(CommandIDs.runCode),
+      runAll: () => commands.execute(CommandIDs.runAllCode),
+      restartAndRunAll: current => {
+        return current.context.session.restart().then(restarted => {
+          if (restarted) {
+            commands.execute(CommandIDs.runAllCode);
+          }
+          return restarted;
+        });
+      }
     } as IRunMenu.ICodeRunner<IDocumentWidget<FileEditor>>);
   }
 

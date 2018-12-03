@@ -142,6 +142,11 @@ const docManagerPlugin: JupyterLabPlugin<IDocumentManager> = {
       docManager.autosave =
         autosave === true || autosave === false ? autosave : true;
       app.commands.notifyCommandChanged(CommandIDs.toggleAutosave);
+
+      const autosaveInterval = settings.get('autosaveInterval').composite as
+        | number
+        | null;
+      docManager.autosaveInterval = autosaveInterval || 120;
     };
 
     // Fetch the initial state of the settings.
@@ -179,13 +184,17 @@ export const savingStatusPlugin: JupyterLabPlugin<void> = {
       () => (item.model!.widget = app.shell.currentWidget)
     );
 
-    statusBar.registerStatusItem('saving-status', item, {
-      align: 'middle',
-      isActive: () => {
-        return true;
-      },
-      stateChanged: item.model!.stateChanged
-    });
+    statusBar.registerStatusItem(
+      '@jupyterlab.docmanager-extension:saving-status',
+      {
+        item,
+        align: 'middle',
+        isActive: () => {
+          return true;
+        },
+        activeStateChanged: item.model!.stateChanged
+      }
+    );
   }
 };
 
@@ -209,13 +218,17 @@ export const pathStatusPlugin: JupyterLabPlugin<void> = {
       item.model!.widget = app.shell.currentWidget;
     });
 
-    statusBar.registerStatusItem('path-status', item, {
-      align: 'right',
-      rank: 0,
-      isActive: () => {
-        return true;
+    statusBar.registerStatusItem(
+      '@jupyterlab/docmanager-extension:path-status',
+      {
+        item,
+        align: 'right',
+        rank: 0,
+        isActive: () => {
+          return true;
+        }
       }
-    });
+    );
   }
 };
 
@@ -465,7 +478,9 @@ function addCommands(
       }
 
       return docManager.services.contents.getDownloadUrl(path).then(url => {
-        window.open(url, '_blank');
+        const opened = window.open();
+        opened.opener = null;
+        opened.location.href = url;
       });
     },
     icon: args => (args['icon'] as string) || '',
@@ -737,6 +752,13 @@ function addCommands(
     command: CommandIDs.closeRightTabs,
     selector: '[data-type="document-title"]',
     rank: 5
+  });
+  // .jp-mod-current added so that the console-creation command is only shown on the current document.
+  // Otherwise it will delegate to the wrong widget.
+  app.contextMenu.addItem({
+    command: 'filemenu:create-console',
+    selector: '[data-type="document-title"].jp-mod-current',
+    rank: 6
   });
 
   [

@@ -22,14 +22,15 @@ import { IDocumentManager } from '@jupyterlab/docmanager';
 import {
   FileBrowserModel,
   FileBrowser,
+  FileUploadStatus,
   IFileBrowserFactory
 } from '@jupyterlab/filebrowser';
-
-import { fileUploadStatus } from './uploadstatus';
 
 import { Launcher } from '@jupyterlab/launcher';
 
 import { Contents } from '@jupyterlab/services';
+
+import { IStatusBar } from '@jupyterlab/statusbar';
 
 import { IIterator, map, reduce, toArray } from '@phosphor/algorithm';
 
@@ -126,6 +127,36 @@ const shareFile: JupyterLabPlugin<void> = {
 };
 
 /**
+ * A plugin providing file upload status.
+ */
+export const fileUploadStatus: JupyterLabPlugin<void> = {
+  id: '@jupyterlab/filebrowser-extension:file-upload-status',
+  autoStart: true,
+  requires: [IStatusBar, IFileBrowserFactory],
+  activate: (
+    app: JupyterLab,
+    statusBar: IStatusBar,
+    browser: IFileBrowserFactory
+  ) => {
+    const item = new FileUploadStatus({
+      tracker: browser.tracker
+    });
+
+    statusBar.registerStatusItem(
+      '@jupyterlab/filebrowser-extension:file-upload-status',
+      {
+        item,
+        align: 'middle',
+        isActive: () => {
+          return !!item.model && item.model.items.length > 0;
+        },
+        activeStateChanged: item.model.stateChanged
+      }
+    );
+  }
+};
+
+/**
  * The file browser namespace token.
  */
 const namespace = 'filebrowser';
@@ -163,8 +194,7 @@ function activateFactory(
     });
     const widget = new FileBrowser({
       id,
-      model,
-      commands: options.commands || commands
+      model
     });
 
     // Add a launcher toolbar item.
@@ -752,7 +782,7 @@ function addCommands(
   });
   app.contextMenu.addItem({
     command: CommandIDs.copyDownloadLink,
-    selector: selectorItem,
+    selector: selectorNotDir,
     rank: 13
   });
 }

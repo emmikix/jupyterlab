@@ -155,10 +155,13 @@ cd tests/test-notebook
 jlpm test
 ```
 
+Note: We are in the process of changing our test suite over to use `jest`. For folders
+that have a `jest.conf.js` file, please see the `jest` specific instructions below.
+
 You can also select specific test file(s) to run using a pattern:
 
 ```bash
-cd tests/test-console
+cd tests/test-notebook
 jlpm test --pattern=src/*.spec.ts
 jlpm test --pattern=src/history.spec.ts
 ```
@@ -185,6 +188,13 @@ command, where `<package-directory-name>` is the name of the folder in
 ```bash
 jlpm create:test <package-directory-name>
 ```
+
+#### Running Jest Tests
+
+For those test folders that use `jest`, they can be run as `jlpm test` to run the files
+directly. You can also use `jlpm test --namePattern=<regex>` to specify specific test
+suite names, and `jlpm test --pathPattern=<regex>` to specify specific test module names. In order to watch the code, add a `debugger` line in your code and run `jlpm watch`. This will start a node V8 debugger, which can be debugged
+in Chrome by browsing to `chrome://inspect/` and launching the remote session.
 
 ### Build and run the stand-alone examples
 
@@ -259,6 +269,12 @@ Documentation is written in Markdown and reStructuredText. In particular, the do
 
 ```bash
 conda env create -f docs/environment.yml
+```
+
+Alternatively, you can install the documentation dependencies in an existing environment using the following command:
+
+```bash
+conda env update -n <ENVIRONMENT> -f docs/environment.yml
 ```
 
 The Developer Documentation includes a [guide](http://jupyterlab.readthedocs.io/en/latest/developer/documentation.html) to writing documentation including writing style, naming conventions, keyboard shortcuts, and screenshots.

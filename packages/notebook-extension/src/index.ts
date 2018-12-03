@@ -302,10 +302,11 @@ export const commandEditItem: JupyterLabPlugin<void> = {
     // Keep the status item up-to-date with the current notebook.
     tracker.currentChanged.connect(() => {
       const current = tracker.currentWidget;
-      item.model.notebook = current.content;
+      item.model.notebook = current && current.content;
     });
 
-    statusBar.registerStatusItem('command-edit-item', item, {
+    statusBar.registerStatusItem('@jupyterlab/notebook-extension:mode-status', {
+      item,
       align: 'right',
       rank: 4,
       isActive: () =>
@@ -333,17 +334,21 @@ export const notebookTrustItem: JupyterLabPlugin<void> = {
     // Keep the status item up-to-date with the current notebook.
     tracker.currentChanged.connect(() => {
       const current = tracker.currentWidget;
-      item.model.notebook = current.content;
+      item.model.notebook = current && current.content;
     });
 
-    statusBar.registerStatusItem('notebook-trust-item', item, {
-      align: 'right',
-      rank: 3,
-      isActive: () =>
-        app.shell.currentWidget &&
-        tracker.currentWidget &&
-        app.shell.currentWidget === tracker.currentWidget
-    });
+    statusBar.registerStatusItem(
+      '@jupyterlab/notebook-extension:trust-status',
+      {
+        item,
+        align: 'right',
+        rank: 3,
+        isActive: () =>
+          app.shell.currentWidget &&
+          tracker.currentWidget &&
+          app.shell.currentWidget === tracker.currentWidget
+      }
+    );
   }
 };
 
@@ -465,6 +470,7 @@ function activateNotebookHandler(
   const services = app.serviceManager;
   // An object for tracking the current notebook settings.
   let editorConfig = StaticNotebook.defaultEditorConfig;
+  let notebookConfig = StaticNotebook.defaultNotebookConfig;
   const factory = new NotebookWidgetFactory({
     name: FACTORY,
     fileTypes: ['notebook'],
@@ -475,6 +481,7 @@ function activateNotebookHandler(
     rendermime: rendermime,
     contentFactory,
     editorConfig,
+    notebookConfig,
     mimeTypeService: editorServices.mimeTypeService
   });
   const { commands, restored } = app;
@@ -544,6 +551,9 @@ function activateNotebookHandler(
           : cached[key];
     });
     factory.editorConfig = editorConfig = { code, markdown, raw };
+    factory.notebookConfig = notebookConfig = {
+      scrollPastEnd: settings.get('scrollPastEnd').composite as boolean
+    };
   }
 
   /**
@@ -552,6 +562,7 @@ function activateNotebookHandler(
   function updateTracker(): void {
     tracker.forEach(widget => {
       widget.content.editorConfig = editorConfig;
+      widget.content.notebookConfig = notebookConfig;
     });
   }
 
@@ -996,10 +1007,8 @@ function addCommands(
     label: () => 'Trust Notebook',
     execute: args => {
       const current = getCurrent(args);
-
       if (current) {
         const { context, content } = current;
-
         return NotebookActions.trust(content).then(() => context.save());
       }
     },
@@ -1026,9 +1035,10 @@ function addCommands(
           args['format'] as string,
           notebookPath
         ) + '?download=true';
-      const child = window.open('', '_blank');
+      const child = window.open('', '_blank', 'noopener');
       const { context } = current;
 
+      child.opener = null;
       if (context.model.dirty && !context.model.readOnly) {
         return context.save().then(() => {
           child.location.assign(url);
@@ -1855,7 +1865,6 @@ function populateMenus(
         }
       });
       const fileGroup = [
-        { command: CommandIDs.trust },
         { type: 'submenu', submenu: exportTo } as Menu.IItemOptions
       ];
       mainMenu.fileMenu.addGroup(fileGroup, 10);
